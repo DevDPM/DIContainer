@@ -11,39 +11,52 @@ import java.lang.reflect.InvocationTargetException;
 import java.net.URL;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Stack;
 
 public class Kickstarter {
+
+    private static Map<String, Object> dependencyHolder = new HashMap<>();
+    private static Map<Class, Object> pilotHolder = new HashMap<>();
+
 
     private Kickstarter() {
 
     }
 
-    private static Map<String, Object> dependencyHolder = new HashMap<>();
-    private static Map<Class, Object> pilotHolder = new HashMap<>();
-
     public static void ignite() throws ClassNotFoundException {
+        String rootPackagePath = Kickstarter.class.getPackageName();
+        ignite(rootPackagePath);
+    }
+
+    private static void ignite(String packagePath) throws ClassNotFoundException {
         try {
             ClassLoader classLoader = Kickstarter.class.getClassLoader();
+            String path = packagePath.replace('.', '/');
 
-            String dottedPackagePath = Kickstarter.class.getPackageName();
-            String packagePath = dottedPackagePath.replace('.', '/');
-            URL url = classLoader.getResource(packagePath);
+            URL url = classLoader.getResource(path);
 
             if (url == null)
                 return;
 
             File folder = new File(url.getPath());
-            File[] content = folder.listFiles();
+            File[] fileArray = folder.listFiles();
 
-            for (int i = 0; i < content.length; i++) {
-                int index = content[i].getName().indexOf(".");
+            for (int i = 0; i < fileArray.length; i++) {
+                String fileName = fileArray[i].getName();
+                int index = fileName.indexOf(".");
 
-                if (!content[i].getName().contains(".class"))
+                if (fileName.contains("$"))
                     continue;
 
-                String className = content[i].getName().substring(0, index);
+                if (!fileName.contains(".class")) {
+                    String childPath = packagePath + "." + fileName;
+                    ignite(childPath);
+                    continue;
+                }
 
-                String classNamePath = dottedPackagePath + "." + className;
+                String className = fileName.substring(0, index);
+
+                String classNamePath = packagePath + "." + className;
                 Class<?> scanClass = Class.forName(classNamePath);
 
                 if (scanClass.getAnnotation(Globalization.class) != null) {
@@ -71,7 +84,6 @@ public class Kickstarter {
                  NoSuchMethodException ex) {
             throw new RuntimeException(ex);
         }
-
         for (Map.Entry<Class, ?> globalClass : pilotHolder.entrySet()) {
             for (Field field : globalClass.getKey().getDeclaredFields()) {
                 if (field.getAnnotation(Inject.class) != null) {
