@@ -1,9 +1,10 @@
 package org.example;
 
-import org.example.annotation.DependencyEnabler;
+import org.example.annotation.Configuration;
 import org.example.annotation.Enable;
 import org.example.annotation.Inject;
-import org.example.annotation.DependencyInjector;
+import org.example.annotation.Service;
+import org.example.model.BigClass;
 
 import java.io.File;
 import java.lang.reflect.Field;
@@ -13,7 +14,7 @@ import java.util.*;
 
 public class Kickstarter {
 
-    private static final Map<String, Object> enabledDependencies = new HashMap<>();
+    private static final Map<Class<?>, Set<BigClass>> injectables = new HashMap<>();
     private static final Map<Class<?>, Object> classesToInject = new HashMap<>();
     private static final ClassLoader classLoader = Kickstarter.class.getClassLoader();
 
@@ -27,72 +28,154 @@ public class Kickstarter {
     }
 
     private static void ignite(String packagePath) throws ClassNotFoundException {
-        List<Class<?>> packagePathList = getPackagepath(packagePath, new ArrayList<>());
-        declareAnnotatedField(DependencyEnabler.class, Enable.class, packagePathList);
-        initializeAnnotatedField(DependencyInjector.class, Inject.class, packagePathList);
-    }
+        List<Class<?>> packagePathList = getClassTree(packagePath, new ArrayList<>());
+        Set<Class<?>> interfaces = new HashSet<>();
 
-    private static void initializeAnnotatedField(Class<DependencyInjector> parent, Class<Inject> child, List<Class<?>> packagePathList) {
-        packagePathList.stream().filter(foundClass -> foundClass.getAnnotation(parent) != null)
-                .forEach(foundClass -> {
-                    if (foundClass.isInterface())
-                        return;
-                    try {
-                        classesToInject.put(foundClass, foundClass.getConstructor().newInstance());
-                        initializeField(child, foundClass, classesToInject.get(foundClass));
+        // instantiate all components into bigClasses as bigClass
+        packagePathList.forEach(baseClass -> {
+            if (validateClass(baseClass))
+                return;
 
-                    } catch (InstantiationException | IllegalAccessException | InvocationTargetException |
-                             NoSuchMethodException e) {
-                        throw new RuntimeException(e);
-                    }
-                });
-    }
+            if (baseClass.isInterface()) {
+                interfaces.add(baseClass);
+                return;
+            }
 
-    private static void declareAnnotatedField(Class<DependencyEnabler> parent, Class<Enable> child, List<Class<?>> packagePathList) {
-        packagePathList.stream()
-                .filter(foundClass -> foundClass.getAnnotation(parent) != null)
-                .forEach(foundClass -> {
-                    Arrays.stream(foundClass.getDeclaredFields())
-                            .filter(field -> field.getAnnotation(child) != null)
-                            .forEach(field -> declareFieldAndCollect(child, field));
-                });
-    }
+            if (baseClass.isAnnotationPresent(Configuration.class)) {
 
-    private static void initializeField(Class<Inject> child, Class<?> foundClass, Object classInstance) {
-            for (Field field : foundClass.getDeclaredFields()) {
-                if (field.getAnnotation(child) != null) {
-                    field.setAccessible(true);
-                    try {
-                        field.set(classInstance, enabledDependencies.get(field.getName()));
-                    } catch (IllegalAccessException ex) {
-                        throw new RuntimeException(ex);
+                // check for @Enable and initialize them
+                for (Field field : baseClass.getDeclaredFields()) {
+                    if (field.isAnnotationPresent(Enable.class)) {
+                        BigClass bigClass = new BigClass();
+                        bigClass.setObservedClass(field.getType());
+                        bigClass.setInstance(new HashSet<>(Collections.singletonList(createInstance(field.getType()))));
+
+                        bigClass.setAdditionalInfo(field.getAnnotation(Enable.class).name());
+                        if (baseClass.getInterfaces().length > 0)
+                            bigClass.setImplementations(new HashSet<>(List.of(baseClass.getInterfaces())));
+
+                        injectables.put(field.getType(), new HashSet<>(Set.of(bigClass)));
                     }
                 }
-            }
-    }
+            } else if (baseClass.isAnnotationPresent(Service.class)) {
+                BigClass bigClass = new BigClass();
+                bigClass.setObservedClass(baseClass);
+                bigClass.setInstance(new HashSet<>(Collections.singletonList(createInstance(baseClass))));
+                bigClass.setAdditionalInfo(baseClass.getAnnotation(Service.class).name());
+                if (baseClass.getInterfaces().length > 0)
+                    bigClass.setImplementations(new HashSet<>(List.of(baseClass.getInterfaces())));
 
-    private static void declareFieldAndCollect(Class<Enable> child, Field field) {
-        if (field.getType().isInterface()) {
-            if (!field.getAnnotation(child).fullClassName().equals(Object.class)) {
-                Class<?> interfaceToClass = field.getAnnotation(child).fullClassName();
-                try {
-                    enabledDependencies.put(field.getName(), interfaceToClass.getConstructor().newInstance());
-                } catch (InstantiationException | IllegalAccessException |
-                         InvocationTargetException | NoSuchMethodException e) {
-                    throw new RuntimeException(e);
-                }
+                injectables.put(baseClass, new HashSet<>(Set.of(bigClass)));
             }
-        } else {
-            try {
-                enabledDependencies.put(field.getName(), field.getType().getConstructor().newInstance());
-            } catch (InstantiationException | IllegalAccessException |
-                     InvocationTargetException | NoSuchMethodException e) {
-                throw new RuntimeException(e);
-            }
+        });
+
+        // check if interfaces were encountered -> solve it
+        if (interfaces.size() > 0) {
+
+            interfaces.forEach(baseIFClass -> {
+                injectables.entrySet().forEach(e -> {
+                    for (BigClass bigClass : e.getValue()) {
+                        bigClass.getImplementations().forEach(implementation -> {
+                            if (implementation.getName().equals(baseIFClass.getName())) {
+                                injectables.computeIfPresent(baseIFClass, (k, v) -> v).add(bigClass);
+                                injectables.putIfAbsent(baseIFClass, new HashSet<>(List.of(bigClass)));
+                            }
+                        });
+                    }
+                });
+            });
         }
+
+        packagePathList.forEach(baseClass -> {
+
+            if (validateClass(baseClass))
+                return;
+
+            if (baseClass.isInterface())
+                return;
+
+            Optional<Set<BigClass>> classContent = injectables.entrySet()
+                    .stream()
+                    .filter(e -> e.getKey().getName().equals(baseClass.getName()))
+                    .map(Map.Entry::getValue)
+                    .findFirst();
+
+            if (classContent.isEmpty())
+                System.out.println("Could not recognize class @Service: " + baseClass.getName());
+
+            BigClass baseClassInstance = classContent.get()
+                    .stream()
+                    .findFirst()
+                    .orElseThrow(() -> new RuntimeException("could not find baseClass"));
+
+
+            for (Field field : baseClass.getDeclaredFields()){
+                if (field.isAnnotationPresent(Inject.class)) {
+
+                    Set<BigClass> fieldInstances = injectables.get(field.getType());
+
+                    if (fieldInstances == null) {
+                        System.out.println("Field is not @Enable for wiring: " + field.getName());
+                        return;
+                    }
+
+                    Class<?> annotatedClassName = field.getAnnotation(Inject.class).className();
+                    String annotatedStringName = field.getAnnotation(Inject.class).name();
+
+                    if (annotatedClassName.equals(Object.class) && annotatedStringName.equals("")) {
+                        BigClass fieldInstance = fieldInstances.stream()
+                                .findFirst()
+                                .orElseThrow(() -> new RuntimeException("Did not find anything at field: " + field.getName()));
+                        setField(field, baseClassInstance, fieldInstance);
+
+                    } else if (!annotatedStringName.equals("")) {
+                        BigClass fieldInstance = fieldInstances.stream()
+                                .filter(e -> e.getAdditionalInfo().equals(annotatedStringName))
+                                .findFirst().orElseThrow(() -> new RuntimeException("Did not find a match naming in field: " + field.getName()));
+                        setField(field, baseClassInstance, fieldInstance);
+
+                    } else {
+
+                        BigClass fieldInstance = fieldInstances.stream()
+                                .filter(e -> e.getObservedClass().getName().equals(annotatedClassName.getName()))
+                                .findFirst().orElseThrow(() -> new RuntimeException("Did not find a match naming in field: " + field.getName()));
+                        setField(field, baseClassInstance, fieldInstance);
+                    }
+                }
+            }
+
+        });
+
     }
 
-    private static List<Class<?>> getPackagepath(String startPackagePath, List<Class<?>> packagePathList) throws ClassNotFoundException {
+    private static void setField(Field field, BigClass baseClassInstance, BigClass fieldInstance) {
+        field.setAccessible(true);
+
+        try {
+            field.set(baseClassInstance, fieldInstance);
+        } catch (IllegalAccessException e) {
+            e.getMessage();
+        }
+
+    }
+
+    private static boolean validateClass(Class<?> baseClass) {
+        if (baseClass.isEnum() || baseClass.isRecord())
+            return false;
+        return true;
+    }
+
+    private static <T> T createInstance(Class<T> type)  {
+        try {
+            return type.getConstructor().newInstance();
+        } catch (NoSuchMethodException | InstantiationException | IllegalAccessException | InvocationTargetException ex) {
+            System.out.println("OBJECT COULD NOT NEWLY BE INSTANTIATED: " + type.getName());
+            ex.getMessage();
+        }
+        return null;
+    }
+
+    private static List<Class<?>> getClassTree(String startPackagePath, List<Class<?>> packagePathList) throws ClassNotFoundException {
 
         String path = startPackagePath.replace('.', '/');
         URL url = classLoader.getResource(path);

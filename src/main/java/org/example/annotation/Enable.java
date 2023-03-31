@@ -9,5 +9,5 @@ import java.lang.annotation.Target;
 @Target(ElementType.FIELD)
 public @interface Enable {
 
-    Class fullClassName() default Object.class;
+    String name() default "";
 }
