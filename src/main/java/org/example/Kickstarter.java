@@ -1,9 +1,9 @@
 package org.example;
 
-import org.example.annotation.Dependency;
+import org.example.annotation.DependencyEnabler;
 import org.example.annotation.Enable;
 import org.example.annotation.Inject;
-import org.example.annotation.Pilot;
+import org.example.annotation.DependencyInjector;
 
 import java.io.File;
 import java.lang.reflect.Field;
@@ -58,7 +58,7 @@ public class Kickstarter {
                 String classNamePath = packagePath + "." + className;
                 Class<?> scanClass = Class.forName(classNamePath);
 
-                if (scanClass.getAnnotation(Dependency.class) != null) {
+                if (scanClass.getAnnotation(DependencyEnabler.class) != null) {
 
                     for (Field field : scanClass.getDeclaredFields()) {
                         if (field.getAnnotation(Enable.class) != null) {
@@ -73,7 +73,7 @@ public class Kickstarter {
                             }
                         }
                     }
-                } else if (scanClass.getAnnotation(Pilot.class) != null) {
+                } else if (scanClass.getAnnotation(DependencyInjector.class) != null) {
                     if (scanClass.isInterface())
                         return;
                     pilotHolder.put(scanClass, scanClass.getConstructor().newInstance());
