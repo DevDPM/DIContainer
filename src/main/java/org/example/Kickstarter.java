@@ -1,7 +1,7 @@
 package org.example;
 
-import org.example.annotation.Globalization;
-import org.example.annotation.Globalize;
+import org.example.annotation.Dependency;
+import org.example.annotation.Enable;
 import org.example.annotation.Inject;
 import org.example.annotation.Pilot;
 
@@ -11,7 +11,6 @@ import java.lang.reflect.InvocationTargetException;
 import java.net.URL;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Stack;
 
 public class Kickstarter {
 
@@ -59,14 +58,14 @@ public class Kickstarter {
                 String classNamePath = packagePath + "." + className;
                 Class<?> scanClass = Class.forName(classNamePath);
 
-                if (scanClass.getAnnotation(Globalization.class) != null) {
+                if (scanClass.getAnnotation(Dependency.class) != null) {
 
                     for (Field field : scanClass.getDeclaredFields()) {
-                        if (field.getAnnotation(Globalize.class) != null) {
+                        if (field.getAnnotation(Enable.class) != null) {
 
                             if (field.getType().isInterface()) {
-                                if (!field.getAnnotation(Globalize.class).fullClassName().equals(Object.class)) {
-                                    Class<?> interfaceToClass = field.getAnnotation(Globalize.class).fullClassName();
+                                if (!field.getAnnotation(Enable.class).fullClassName().equals(Object.class)) {
+                                    Class<?> interfaceToClass = field.getAnnotation(Enable.class).fullClassName();
                                     dependencyHolder.put(field.getName(), interfaceToClass.getConstructor().newInstance());
                                 }
                             } else {
