@@ -32,15 +32,13 @@ public class Kickstarter {
 
         // instantiate all components into bigClasses as bigClass
         packagePathList.forEach(baseClass -> {
-            if (!validateClass(baseClass))
+            if (isNotValidClass(baseClass))
                 return;
 
             if (baseClass.isInterface()) {
                 interfaces.add(baseClass);
                 return;
             }
-
-            System.out.println(baseClass);
 
             if (baseClass.isAnnotationPresent(Configuration.class)) {
 
@@ -49,50 +47,62 @@ public class Kickstarter {
                     if (field.isAnnotationPresent(Enable.class)) {
                         BigClass bigClass = new BigClass();
                         bigClass.setObservedClass(field.getType());
-                        bigClass.setInstance(new HashSet<>(Collections.singletonList(createInstance(field.getType()))));
+                        bigClass.setInstance(new HashSet<>(List.of(createInstance(field.getType()))));
 
                         bigClass.setAdditionalInfo(field.getAnnotation(Enable.class).name());
+
                         if (baseClass.getInterfaces().length > 0)
                             bigClass.setImplementations(new HashSet<>(List.of(baseClass.getInterfaces())));
 
-                        injectables.put(field.getType(), new HashSet<>(Set.of(bigClass)));
+                        addInjectable(field.getType(), bigClass);
                     }
                 }
             } else if (baseClass.isAnnotationPresent(Service.class)) {
                 BigClass bigClass = new BigClass();
                 bigClass.setObservedClass(baseClass);
-                bigClass.setInstance(new HashSet<>(Collections.singletonList(createInstance(baseClass))));
+                bigClass.setInstance(new HashSet<>(List.of(createInstance(baseClass))));
                 bigClass.setAdditionalInfo(baseClass.getAnnotation(Service.class).name());
+
                 if (baseClass.getInterfaces().length > 0)
                     bigClass.setImplementations(new HashSet<>(List.of(baseClass.getInterfaces())));
 
-                injectables.put(baseClass, new HashSet<>(Set.of(bigClass)));
+                addInjectable(baseClass, bigClass);
             }
         });
 
-
         // check if interfaces were encountered -> solve it
+        List<BigClass[]> temp = new ArrayList<>();
         if (interfaces.size() > 0) {
+            for (Class<?> baseIFClass : interfaces) {
+                for (Map.Entry<Class<?>, Set<BigClass>> entity : injectables.entrySet()) {
+                    for (BigClass bigClass : entity.getValue()) {
+                        if (bigClass.getImplementations() == null)
+                            continue;
 
-            interfaces.forEach(baseIFClass -> {
-                injectables.entrySet().forEach(e -> {
-                    for (BigClass bigClass : e.getValue()) {
-                        bigClass.getImplementations().forEach(implementation -> {
-                            if (implementation.getName().equals(baseIFClass.getName())) {
-                                injectables.computeIfPresent(baseIFClass, (k, v) -> v).add(bigClass);
-                                injectables.putIfAbsent(baseIFClass, new HashSet<>(List.of(bigClass)));
+                        for (Class<?> IFClass : bigClass.getImplementations()) {
+                            if (IFClass.getName().equals(baseIFClass.getName())) {
+                                BigClass newClass = new BigClass();
+                                BigClass[] holder = new BigClass[2];
+                                newClass.setObservedClass(baseIFClass);
+                                holder[0] = newClass;
+                                holder[1] = bigClass;
+                                temp.add(holder);
                             }
-                        });
+                        }
                     }
-                });
-            });
+                }
+            }
         }
+        temp.forEach(e -> {
+            System.out.println("SDFSDFSD "+e[1].getObservedClass().getName());
+            addInjectable(e[0].getObservedClass(), e[1]);
+        });
 
         packagePathList.forEach(baseClass -> {
 
-            if (!validateClass(baseClass) || baseClass.isInterface() || !baseClass.isAnnotation())
+            if (isNotValidClass(baseClass) || baseClass.isInterface() || !baseClass.isAnnotationPresent(Service.class)) {
                 return;
-
+            }
 
             Optional<Set<BigClass>> classContent = injectables.entrySet()
                     .stream()
@@ -100,12 +110,10 @@ public class Kickstarter {
                     .map(Map.Entry::getValue)
                     .findFirst();
 
-
             BigClass baseClassInstance = classContent.get()
                     .stream()
                     .findFirst()
                     .orElseThrow(() -> new RuntimeException("could not find baseClass"));
-
 
             for (Field field : baseClass.getDeclaredFields()){
                 if (field.isAnnotationPresent(Inject.class)) {
@@ -124,6 +132,7 @@ public class Kickstarter {
                         BigClass fieldInstance = fieldInstances.stream()
                                 .findFirst()
                                 .orElseThrow(() -> new RuntimeException("Did not find anything at field: " + field.getName()));
+
                         setField(field, baseClassInstance, fieldInstance);
 
                     } else if (!annotatedStringName.equals("")) {
@@ -141,13 +150,35 @@ public class Kickstarter {
                     }
                 }
             }
-
         });
 
     }
 
-    private static void setField(Field field, BigClass baseClassInstance, BigClass fieldInstance) {
+    private static void addInjectable(Class<?> type, BigClass bigClass) {
+        if (injectables.get(type) != null) {
+            System.out.println("extra " + type);
+            System.out.println(bigClass.getInstance());
+            Set<BigClass> value = injectables.get(type);
+            if (value.add(bigClass)) {
+                System.out.println("size: " + value.size());
+                injectables.put(type, value);
+            }
+        } else {
+            injectables.put(type, new HashSet<>(List.of(bigClass)));
+        }
+    }
+
+    private static void setField(Field field, BigClass baseClass, BigClass fieldClass) {
         field.setAccessible(true);
+
+        Object baseClassInstance = baseClass.getInstance()
+                .stream()
+                .findFirst()
+                .orElseThrow(() -> new RuntimeException("Cannot convert baseClass"));
+        Object fieldInstance = fieldClass.getInstance()
+                .stream()
+                .findFirst()
+                .orElseThrow(() -> new RuntimeException("Cannot convert baseClass"));
 
         try {
             field.set(baseClassInstance, fieldInstance);
@@ -157,18 +188,19 @@ public class Kickstarter {
 
     }
 
-    private static boolean validateClass(Class<?> baseClass) {
-        if (baseClass.isEnum() || baseClass.isRecord())
-            return false;
-        return true;
+    private static boolean isNotValidClass(Class<?> baseClass) {
+        if (baseClass.isEnum() || baseClass.isRecord() || baseClass.isAnnotation() || baseClass.isAnonymousClass()
+        || baseClass.isMemberClass())
+            return true;
+        return false;
     }
 
     private static <T> T createInstance(Class<T> type)  {
         try {
-            return type.getConstructor().newInstance();
+            return type.getConstructor(new Class[]{}).newInstance();
         } catch (NoSuchMethodException | InstantiationException | IllegalAccessException | InvocationTargetException ex) {
             System.out.println("OBJECT COULD NOT NEWLY BE INSTANTIATED: " + type.getName());
-            ex.getMessage();
+            ex.getStackTrace();
         }
         return null;
     }
@@ -193,7 +225,7 @@ public class Kickstarter {
 
             if (!fileName.contains(".class")) {
                 String childPath = startPackagePath + "." + fileName;
-                ignite(childPath);
+                getClassTree(childPath, packagePathList);
                 continue;
             }
 
@@ -207,6 +239,8 @@ public class Kickstarter {
     }
 
     public static <T> T getInstanceOf(Class<T> classFileName) {
-        return (T) injectables.get(classFileName);
+        BigClass bigClass = injectables.get(classFileName).stream().findFirst().orElseThrow(() -> new RuntimeException("Instance not found from class: " + classFileName));
+        T object = (T) bigClass.getInstance().stream().findFirst().orElseThrow(() -> new RuntimeException("Cannot extract instance.."));
+        return object;
     }
 }

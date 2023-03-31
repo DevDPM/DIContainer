@@ -8,7 +8,7 @@ public class BigClass {
     private Class<?> observedClass;
     private Set<Object> instance;
     private Set<Class<?>> implementations;
-    private String additionalInfo;
+    private String additionalInfo = null;
 
     public Class<?> getObservedClass() {
         return observedClass;
@@ -47,11 +47,11 @@ public class BigClass {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         BigClass bigClass = (BigClass) o;
-        return Objects.equals(observedClass, bigClass.observedClass);
+        return Objects.equals(additionalInfo, bigClass.additionalInfo) && Objects.equals(observedClass, bigClass.observedClass);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(observedClass);
+        return Objects.hash(additionalInfo);
     }
 }
