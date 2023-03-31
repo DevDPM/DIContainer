@@ -15,7 +15,6 @@ import java.util.*;
 public class Kickstarter {
 
     private static final Map<Class<?>, Set<BigClass>> injectables = new HashMap<>();
-    private static final Map<Class<?>, Object> classesToInject = new HashMap<>();
     private static final ClassLoader classLoader = Kickstarter.class.getClassLoader();
 
     private Kickstarter() {
@@ -33,13 +32,15 @@ public class Kickstarter {
 
         // instantiate all components into bigClasses as bigClass
         packagePathList.forEach(baseClass -> {
-            if (validateClass(baseClass))
+            if (!validateClass(baseClass))
                 return;
 
             if (baseClass.isInterface()) {
                 interfaces.add(baseClass);
                 return;
             }
+
+            System.out.println(baseClass);
 
             if (baseClass.isAnnotationPresent(Configuration.class)) {
 
@@ -69,6 +70,7 @@ public class Kickstarter {
             }
         });
 
+
         // check if interfaces were encountered -> solve it
         if (interfaces.size() > 0) {
 
@@ -88,11 +90,9 @@ public class Kickstarter {
 
         packagePathList.forEach(baseClass -> {
 
-            if (validateClass(baseClass))
+            if (!validateClass(baseClass) || baseClass.isInterface() || !baseClass.isAnnotation())
                 return;
 
-            if (baseClass.isInterface())
-                return;
 
             Optional<Set<BigClass>> classContent = injectables.entrySet()
                     .stream()
@@ -100,8 +100,6 @@ public class Kickstarter {
                     .map(Map.Entry::getValue)
                     .findFirst();
 
-            if (classContent.isEmpty())
-                System.out.println("Could not recognize class @Service: " + baseClass.getName());
 
             BigClass baseClassInstance = classContent.get()
                     .stream()
@@ -209,6 +207,6 @@ public class Kickstarter {
     }
 
     public static <T> T getInstanceOf(Class<T> classFileName) {
-        return (T) classesToInject.get(classFileName);
+        return (T) injectables.get(classFileName);
     }
 }
