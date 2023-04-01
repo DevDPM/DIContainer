@@ -6,7 +6,7 @@ import java.util.Set;
 public class BigClass {
 
     private Class<?> observedClass;
-    private Set<Object> instance;
+    private Object instance;
     private Set<Class<?>> implementations;
     private String additionalInfo = null;
 
@@ -18,11 +18,11 @@ public class BigClass {
         this.observedClass = observedClass;
     }
 
-    public Set<Object> getInstance() {
+    public Object getInstance() {
         return instance;
     }
 
-    public void setInstance(Set<Object> instance) {
+    public void setInstance(Object instance) {
         this.instance = instance;
     }
 

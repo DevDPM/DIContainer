@@ -32,6 +32,87 @@ public class Kickstarter {
         Set<Class<?>> interfaces = new HashSet<>();
 
         // instantiate all components into bigClasses as bigClass
+        instantiateComponentsByAnnotation(packagePathList, interfaces);
+
+        // check if interfaces were encountered -> solve it
+        if (interfaces.size() > 0)
+            wireInterfaceClassToImplementedBigClass(interfaces);
+
+        packagePathList.forEach(baseClass -> {
+
+            if (isNotValidClass(baseClass) || baseClass.isInterface() || !baseClass.isAnnotationPresent(Service.class)) {
+                return;
+            }
+
+            BigClass baseClassInstance = getBigClassFromInjectables(baseClass);
+
+            for (Field field : baseClass.getDeclaredFields()){
+                if (field.isAnnotationPresent(Inject.class)) {
+                    Set<BigClass> fieldInstances = injectables.get(field.getType());
+                    if (fieldInstances == null) {
+                        System.out.println("Field is not @Enable for wiring: " + field.getName());
+                        return;
+                    }
+                    instantiateField(baseClassInstance, field, fieldInstances);
+                }
+            }
+        });
+    }
+
+
+
+    private static void instantiateField(BigClass baseClassInstance, Field field, Set<BigClass> fieldInstances) {
+        Class<?> annotatedClassName = field.getAnnotation(Inject.class).className();
+        String annotatedStringName = field.getAnnotation(Inject.class).name();
+
+        if (annotatedClassName.equals(Object.class) && annotatedStringName.equals("")) {
+            BigClass fieldInstance = fieldInstances.stream()
+                    .findFirst()
+                    .orElseThrow(() -> new RuntimeException("Did not find anything at field: " + field.getName()));
+
+            setField(field, baseClassInstance, fieldInstance);
+        } else if (!annotatedStringName.equals("")) {
+            BigClass fieldInstance = fieldInstances.stream()
+                    .filter(e -> e.getAdditionalInfo().equals(annotatedStringName))
+                    .findFirst().orElseThrow(() -> new RuntimeException("Did not find a match naming in field: " + field.getName()));
+            setField(field, baseClassInstance, fieldInstance);
+
+        } else {
+            BigClass fieldInstance = fieldInstances.stream()
+                    .filter(e -> e.getObservedClass().getName().equals(annotatedClassName.getName()))
+                    .findFirst().orElseThrow(() -> new RuntimeException("Did not find a match naming in field: " + field.getName()));
+            setField(field, baseClassInstance, fieldInstance);
+        }
+    }
+
+    private static void wireInterfaceClassToImplementedBigClass(Set<Class<?>> interfaces) {
+        List<BigClass[]> temp = new ArrayList<>();
+            for (Class<?> baseIFClass : interfaces) {
+                for (Map.Entry<Class<?>, Set<BigClass>> entity : injectables.entrySet()) {
+                    for (BigClass bigClass : entity.getValue()) {
+                        if (bigClass.getImplementations() == null)
+                            continue;
+
+                        for (Class<?> IFClass : bigClass.getImplementations()) {
+                            if (IFClass.getName().equals(baseIFClass.getName())) {
+                                BigClass interfaceClass = new BigClass();
+                                interfaceClass.setObservedClass(baseIFClass);
+
+                                BigClass[] holder = new BigClass[2];
+                                holder[0] = interfaceClass;
+                                holder[1] = bigClass;
+                                temp.add(holder);
+                            }
+                        }
+                    }
+                }
+            }
+        temp.forEach(e -> {
+            addInjectable(e[0].getObservedClass(), e[1]);
+        });
+    }
+
+    private static void instantiateComponentsByAnnotation(List<Class<?>> packagePathList, Set<Class<?>> interfaces) {
         packagePathList.forEach(baseClass -> {
             if (isNotValidClass(baseClass))
                 return;
@@ -42,115 +123,33 @@ public class Kickstarter {
             }
 
             if (baseClass.isAnnotationPresent(Configurations.class)) {
-
-                // check for @Enable and initialize them
                 for (Field field : baseClass.getDeclaredFields()) {
                     if (field.isAnnotationPresent(Enable.class)) {
-                        BigClass bigClass = new BigClass();
-                        bigClass.setObservedClass(field.getType());
-                        bigClass.setInstance(new HashSet<>(List.of(Objects.requireNonNull(createInstance(field.getType())))));
-
+                        Class<?> fieldClass = field.getType();
+                        BigClass bigClass = createBigClass(baseClass, fieldClass);
                         bigClass.setAdditionalInfo(field.getAnnotation(Enable.class).name());
-
-                        if (baseClass.getInterfaces().length > 0)
-                            bigClass.setImplementations(new HashSet<>(List.of(baseClass.getInterfaces())));
-
                         addInjectable(field.getType(), bigClass);
                     }
                 }
             } else if (baseClass.isAnnotationPresent(Service.class)) {
-                BigClass bigClass = new BigClass();
-                bigClass.setObservedClass(baseClass);
-                bigClass.setInstance(new HashSet<>(List.of(Objects.requireNonNull(createInstance(baseClass)))));
+                BigClass bigClass = createBigClass(baseClass);
                 bigClass.setAdditionalInfo(baseClass.getAnnotation(Service.class).name());
-
-                if (baseClass.getInterfaces().length > 0)
-                    bigClass.setImplementations(new HashSet<>(List.of(baseClass.getInterfaces())));
-
                 addInjectable(baseClass, bigClass);
             }
         });
+    }
 
-        // check if interfaces were encountered -> solve it
-        List<BigClass[]> temp = new ArrayList<>();
-        if (interfaces.size() > 0) {
-            for (Class<?> baseIFClass : interfaces) {
-                for (Map.Entry<Class<?>, Set<BigClass>> entity : injectables.entrySet()) {
-                    for (BigClass bigClass : entity.getValue()) {
-                        if (bigClass.getImplementations() == null)
-                            continue;
+    private static BigClass createBigClass(Class<?> baseClass) {
+        return createBigClass(baseClass, baseClass);
+    }
 
-                        for (Class<?> IFClass : bigClass.getImplementations()) {
-                            if (IFClass.getName().equals(baseIFClass.getName())) {
-                                BigClass newClass = new BigClass();
-                                BigClass[] holder = new BigClass[2];
-                                newClass.setObservedClass(baseIFClass);
-                                holder[0] = newClass;
-                                holder[1] = bigClass;
-                                temp.add(holder);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        temp.forEach(e -> {
-            addInjectable(e[0].getObservedClass(), e[1]);
-        });
-
-        packagePathList.forEach(baseClass -> {
-
-            if (isNotValidClass(baseClass) || baseClass.isInterface() || !baseClass.isAnnotationPresent(Service.class)) {
-                return;
-            }
-
-            Optional<Set<BigClass>> classContent = injectables.entrySet()
-                    .stream()
-                    .filter(e -> e.getKey().getName().equals(baseClass.getName()))
-                    .map(Map.Entry::getValue)
-                    .findFirst();
-
-            BigClass baseClassInstance = classContent.get()
-                    .stream()
-                    .findFirst()
-                    .orElseThrow(() -> new RuntimeException("could not find baseClass"));
-
-            for (Field field : baseClass.getDeclaredFields()){
-                if (field.isAnnotationPresent(Inject.class)) {
-
-                    Set<BigClass> fieldInstances = injectables.get(field.getType());
-
-                    if (fieldInstances == null) {
-                        System.out.println("Field is not @Enable for wiring: " + field.getName());
-                        return;
-                    }
-
-                    Class<?> annotatedClassName = field.getAnnotation(Inject.class).className();
-                    String annotatedStringName = field.getAnnotation(Inject.class).name();
-
-                    if (annotatedClassName.equals(Object.class) && annotatedStringName.equals("")) {
-                        BigClass fieldInstance = fieldInstances.stream()
-                                .findFirst()
-                                .orElseThrow(() -> new RuntimeException("Did not find anything at field: " + field.getName()));
-
-                        setField(field, baseClassInstance, fieldInstance);
-
-                    } else if (!annotatedStringName.equals("")) {
-                        BigClass fieldInstance = fieldInstances.stream()
-                                .filter(e -> e.getAdditionalInfo().equals(annotatedStringName))
-                                .findFirst().orElseThrow(() -> new RuntimeException("Did not find a match naming in field: " + field.getName()));
-                        setField(field, baseClassInstance, fieldInstance);
-
-                    } else {
-
-                        BigClass fieldInstance = fieldInstances.stream()
-                                .filter(e -> e.getObservedClass().getName().equals(annotatedClassName.getName()))
-                                .findFirst().orElseThrow(() -> new RuntimeException("Did not find a match naming in field: " + field.getName()));
-                        setField(field, baseClassInstance, fieldInstance);
-                    }
-                }
-            }
-        });
+    private static BigClass createBigClass(Class<?> baseClass, Class<?> observedClass) {
+        BigClass bigClass = new BigClass();
+        bigClass.setObservedClass(observedClass);
+        bigClass.setInstance(Objects.requireNonNull(createInstance(observedClass)));
+        if (baseClass.getInterfaces().length > 0)
+            bigClass.setImplementations(new HashSet<>(List.of(baseClass.getInterfaces())));
+        return bigClass;
     }
 
     public static void printDIManagementList() {
@@ -160,9 +159,7 @@ public class Kickstarter {
             System.out.println("__________");
             System.out.println(counter.incrementAndGet() + ". Class/Field -> "+a.getKey().getSimpleName());
             a.getValue().forEach(b -> {
-                b.getInstance().forEach(c -> {
-                    System.out.println("\tInstance:\t\t\t" + c.toString());
-                });
+                System.out.println("\tInstance:\t\t\t" + b.getInstance());
                 System.out.println("\tObservedClass:\t\t" + b.getObservedClass());
                 System.out.println("\t@Enable (name = ?):\t" + b.getAdditionalInfo());
                 System.out.println();
@@ -184,14 +181,8 @@ public class Kickstarter {
     private static void setField(Field field, BigClass baseClass, BigClass fieldClass) {
         field.setAccessible(true);
 
-        Object baseClassInstance = baseClass.getInstance()
-                .stream()
-                .findFirst()
-                .orElseThrow(() -> new RuntimeException("Cannot convert baseClass"));
-        Object fieldInstance = fieldClass.getInstance()
-                .stream()
-                .findFirst()
-                .orElseThrow(() -> new RuntimeException("Cannot convert baseClass"));
+        Object baseClassInstance = baseClass.getInstance();
+        Object fieldInstance = fieldClass.getInstance();
 
         try {
             field.set(baseClassInstance, fieldInstance);
@@ -218,7 +209,7 @@ public class Kickstarter {
         return null;
     }
 
-    private static List<Class<?>> getClassTree(String startPackagePath, List<Class<?>> packagePathList) throws ClassNotFoundException {
+    private static List<Class<?>> getClassTree(String startPackagePath, List<Class<?>> packagePathList) {
 
         String path = startPackagePath.replace('.', '/');
         URL url = classLoader.getResource(path);
@@ -245,31 +236,43 @@ public class Kickstarter {
             String className = fileName.substring(0, index);
 
             String classNamePath = startPackagePath + "." + className;
-            Class<?> foundClass = Class.forName(classNamePath);
-            packagePathList.add(foundClass);
+            Class<?> foundClass;
+            try {
+                foundClass = Class.forName(classNamePath);
+                packagePathList.add(foundClass);
+            } catch (ClassNotFoundException ex) {
+                ex.getStackTrace();
+            }
+
         }
         return packagePathList;
     }
 
+    private static BigClass getBigClassFromInjectables(Class<?> baseClass) {
+        return getBigClassFromInjectables(baseClass, "");
+    }
+
+    private static BigClass getBigClassFromInjectables(Class<?> baseClass, String name) {
+        BigClass bigClass = injectables.get(baseClass)
+                .stream()
+                .findFirst()
+                .filter(e -> {
+                    if (name.equals("")) {
+                        return true;
+                    }else {
+                        return e.getAdditionalInfo().equals(name);
+                    }
+                })
+                .orElseThrow(() -> new RuntimeException("not found"));
+
+        return bigClass;
+    }
+
     public static <T> T getInstanceOf(Class<T> classFileName) {
-        return getInstanceOf(classFileName, "");
+        return (T) getBigClassFromInjectables(classFileName).getInstance();
     }
 
     public static <T> T getInstanceOf(Class<T> classFileName, String name) {
-        BigClass bigClass;
-        if (name.equals("")) {
-            bigClass = injectables.get(classFileName)
-                    .stream()
-                    .findFirst()
-                    .orElseThrow(() -> new RuntimeException("Instance not found from class: " + classFileName));
-        } else {
-            bigClass = injectables.get(classFileName)
-                    .stream()
-                    .filter(e -> e.getAdditionalInfo().equals(name))
-                    .findFirst()
-                    .orElseThrow(() -> new RuntimeException("Instance not found from class: " + classFileName + " and name: " + name));
-        }
-        T object = (T) bigClass.getInstance().stream().findFirst().orElseThrow(() -> new RuntimeException("Cannot extract instance.."));
-        return object;
+        return (T) getBigClassFromInjectables(classFileName, name).getInstance();
     }
 }
