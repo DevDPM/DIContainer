@@ -9,8 +9,8 @@ public class Kickstarter {
     private Kickstarter() {
     }
 
-    public static void ignite() {
-        Controller.instantiateAllAnnotations();
+    public static void ignite(Class<?> startClass) {
+        Controller.instantiateAllAnnotations(startClass);
         Controller.initializeAllAnnotations();
     }
 

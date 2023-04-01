@@ -19,9 +19,9 @@ public class ClassURIService {
         return false;
     }
 
-    public static void bootstrapRepository() {
+    public static void bootstrapRepository(Class<?> startClass) {
         if (ClassURIRepository.getClasses().isEmpty()) {
-            ClassURIRepository.init();
+            ClassURIRepository.init(startClass);
         }
     }
 }

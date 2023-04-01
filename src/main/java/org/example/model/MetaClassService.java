@@ -21,8 +21,9 @@ public class MetaClassService {
     }
 
     private static <T> T createInstance(Class<T> type)  {
+        System.out.println("instance "+type);
         try {
-            return type.getConstructor(new Class[]{}).newInstance();
+            return type.getConstructor(new Class<?>[]{}).newInstance();
         } catch (NoSuchMethodException | InstantiationException | IllegalAccessException | InvocationTargetException ex) {
             System.out.println("OBJECT COULD NOT NEWLY BE INSTANTIATED: " + type.getName());
             ex.getStackTrace();

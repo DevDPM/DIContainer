@@ -14,10 +14,11 @@ import java.util.Set;
 // delegates the metaClass service of what needs to be done
 public class DispatcherDI {
 
-    public static void instantiateClassesByAnnotation() {
+    public static void bootstrapClassPaths(Class<?> startClass) {
+        ClassURIService.bootstrapRepository(startClass);
+    }
 
-        if (ClassURIService.getAllClasses().isEmpty())
-            ClassURIService.bootstrapRepository();
+    public static void instantiateClassesByAnnotation() {
 
         if (ClassURIService.getAllClasses().isEmpty())
             throw new RuntimeException("Cannot retrieve all classes");

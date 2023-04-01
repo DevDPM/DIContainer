@@ -1,5 +1,6 @@
 package org.example.model;
 
+import com.sun.tools.javac.Main;
 import org.example.Kickstarter;
 
 import java.io.File;
@@ -16,8 +17,8 @@ public class ClassURIRepository {
     private ClassURIRepository() {
     }
 
-    public static void init() {
-        String rootPackagePath = Kickstarter.class.getPackageName();
+    public static void init(Class<?> startClass) {
+        String rootPackagePath = startClass.getPackageName();
         loadClassPaths(rootPackagePath);
     }
 

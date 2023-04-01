@@ -18,14 +18,15 @@ public class MetaClassRepository {
     public static MetaClass getFirstMetaClassByClass(Class<?> baseClass, String optionalName) {
         return injectables.get(baseClass)
                 .stream()
-                .findFirst()
                 .filter(e -> {
                     if (optionalName.equals("")) {
                         return true;
                     }else {
+                        System.out.println(e.getAdditionalInfo() + " vs " + optionalName);
                         return e.getAdditionalInfo().equals(optionalName);
                     }
                 })
+                .findFirst()
                 .orElseThrow(() -> new RuntimeException("not found"));
     }
 
