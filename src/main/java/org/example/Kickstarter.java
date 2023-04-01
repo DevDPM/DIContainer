@@ -1,6 +1,6 @@
 package org.example;
 
-import org.example.annotation.Configuration;
+import org.example.annotation.Configurations;
 import org.example.annotation.Enable;
 import org.example.annotation.Inject;
 import org.example.annotation.Service;
@@ -11,6 +11,7 @@ import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.net.URL;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class Kickstarter {
 
@@ -40,14 +41,14 @@ public class Kickstarter {
                 return;
             }
 
-            if (baseClass.isAnnotationPresent(Configuration.class)) {
+            if (baseClass.isAnnotationPresent(Configurations.class)) {
 
                 // check for @Enable and initialize them
                 for (Field field : baseClass.getDeclaredFields()) {
                     if (field.isAnnotationPresent(Enable.class)) {
                         BigClass bigClass = new BigClass();
                         bigClass.setObservedClass(field.getType());
-                        bigClass.setInstance(new HashSet<>(List.of(createInstance(field.getType()))));
+                        bigClass.setInstance(new HashSet<>(List.of(Objects.requireNonNull(createInstance(field.getType())))));
 
                         bigClass.setAdditionalInfo(field.getAnnotation(Enable.class).name());
 
@@ -60,7 +61,7 @@ public class Kickstarter {
             } else if (baseClass.isAnnotationPresent(Service.class)) {
                 BigClass bigClass = new BigClass();
                 bigClass.setObservedClass(baseClass);
-                bigClass.setInstance(new HashSet<>(List.of(createInstance(baseClass))));
+                bigClass.setInstance(new HashSet<>(List.of(Objects.requireNonNull(createInstance(baseClass)))));
                 bigClass.setAdditionalInfo(baseClass.getAnnotation(Service.class).name());
 
                 if (baseClass.getInterfaces().length > 0)
@@ -94,7 +95,6 @@ public class Kickstarter {
             }
         }
         temp.forEach(e -> {
-            System.out.println("SDFSDFSD "+e[1].getObservedClass().getName());
             addInjectable(e[0].getObservedClass(), e[1]);
         });
 
@@ -151,16 +151,29 @@ public class Kickstarter {
                 }
             }
         });
+    }
 
+    public static void printDIManagementList() {
+        System.out.println("_____ DI Injectables list");
+        AtomicInteger counter = new AtomicInteger(0);
+        injectables.entrySet().forEach(a -> {
+            System.out.println("__________");
+            System.out.println(counter.incrementAndGet() + ". Class/Field -> "+a.getKey().getSimpleName());
+            a.getValue().forEach(b -> {
+                b.getInstance().forEach(c -> {
+                    System.out.println("\tInstance:\t\t\t" + c.toString());
+                });
+                System.out.println("\tObservedClass:\t\t" + b.getObservedClass());
+                System.out.println("\t@Enable (name = ?):\t" + b.getAdditionalInfo());
+                System.out.println();
+            });
+        });
     }
 
     private static void addInjectable(Class<?> type, BigClass bigClass) {
         if (injectables.get(type) != null) {
-            System.out.println("extra " + type);
-            System.out.println(bigClass.getInstance());
             Set<BigClass> value = injectables.get(type);
             if (value.add(bigClass)) {
-                System.out.println("size: " + value.size());
                 injectables.put(type, value);
             }
         } else {
@@ -239,7 +252,23 @@ public class Kickstarter {
     }
 
     public static <T> T getInstanceOf(Class<T> classFileName) {
-        BigClass bigClass = injectables.get(classFileName).stream().findFirst().orElseThrow(() -> new RuntimeException("Instance not found from class: " + classFileName));
+        return getInstanceOf(classFileName, "");
+    }
+
+    public static <T> T getInstanceOf(Class<T> classFileName, String name) {
+        BigClass bigClass;
+        if (name.equals("")) {
+            bigClass = injectables.get(classFileName)
+                    .stream()
+                    .findFirst()
+                    .orElseThrow(() -> new RuntimeException("Instance not found from class: " + classFileName));
+        } else {
+            bigClass = injectables.get(classFileName)
+                    .stream()
+                    .filter(e -> e.getAdditionalInfo().equals(name))
+                    .findFirst()
+                    .orElseThrow(() -> new RuntimeException("Instance not found from class: " + classFileName + " and name: " + name));
+        }
         T object = (T) bigClass.getInstance().stream().findFirst().orElseThrow(() -> new RuntimeException("Cannot extract instance.."));
         return object;
     }
