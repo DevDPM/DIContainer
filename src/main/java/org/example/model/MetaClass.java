@@ -3,7 +3,8 @@ package org.example.model;
 import java.util.Objects;
 import java.util.Set;
 
-public class BigClass {
+// extended version of a Class with meta-data
+public class MetaClass {
 
     private Class<?> observedClass;
     private Object instance;
@@ -46,8 +47,8 @@ public class BigClass {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        BigClass bigClass = (BigClass) o;
-        return Objects.equals(additionalInfo, bigClass.additionalInfo) && Objects.equals(observedClass, bigClass.observedClass);
+        MetaClass metaClass = (MetaClass) o;
+        return Objects.equals(additionalInfo, metaClass.additionalInfo) && Objects.equals(observedClass, metaClass.observedClass);
     }
 
     @Override
