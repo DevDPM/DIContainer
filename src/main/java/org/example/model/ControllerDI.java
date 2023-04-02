@@ -1,7 +1,7 @@
 package org.example.model;
 
 
-public class Controller {
+public class ControllerDI {
 
     public static void instantiateAllAnnotations(Class<?> startClass) {
         DispatcherDI.bootstrapClassPaths(startClass);
@@ -10,6 +10,10 @@ public class Controller {
     }
 
     public static void initializeAllAnnotations() {
-        DispatcherDI.initializeClasses();
+        DispatcherDI.initializeAllFields();
+    }
+
+    public static void performAllControllerInit() {
+        DispatcherDI.callInit();
     }
 }

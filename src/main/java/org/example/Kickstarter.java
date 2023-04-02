@@ -1,6 +1,6 @@
 package org.example;
 
-import org.example.model.Controller;
+import org.example.model.ControllerDI;
 import org.example.model.MetaClassRepository;
 import org.example.model.MetaClassService;
 
@@ -10,8 +10,9 @@ public class Kickstarter {
     }
 
     public static void ignite(Class<?> startClass) {
-        Controller.instantiateAllAnnotations(startClass);
-        Controller.initializeAllAnnotations();
+        ControllerDI.instantiateAllAnnotations(startClass);
+        ControllerDI.initializeAllAnnotations();
+        ControllerDI.performAllControllerInit();
     }
 
     public static void printContext(){
@@ -19,10 +20,10 @@ public class Kickstarter {
     }
 
     public static <T> T getInstanceOf(Class<T> classFileName) {
-        return (T) MetaClassRepository.getFirstMetaClassByClass(classFileName).getInstance();
+        return (T) MetaClassRepository.getMetaClassByClass(classFileName).getInstance();
     }
 
     public static <T> T getInstanceOf(Class<T> classFileName, String name) {
-        return (T) MetaClassRepository.getFirstMetaClassByClass(classFileName, name).getInstance();
+        return (T) MetaClassRepository.getMetaClassesByClass(classFileName, name).getInstance();
     }
 }

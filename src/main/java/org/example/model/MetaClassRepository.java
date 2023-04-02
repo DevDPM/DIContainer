@@ -7,22 +7,22 @@ public class MetaClassRepository {
 
     private static final Map<Class<?>, Set<MetaClass>> injectables = new HashMap<>();
 
-    public static Set<MetaClass> getMetaClassByClass(Class<?> className) {
+    public static Set<MetaClass> getMetaClassesByClass(Class<?> className) {
         return injectables.get(className);
     }
 
-    public static MetaClass getFirstMetaClassByClass(Class<?> baseClass) {
-        return getFirstMetaClassByClass(baseClass, "");
+    public static MetaClass getMetaClassByClass(Class<?> baseClass) {
+        return getMetaClassesByClass(baseClass, "");
     }
 
-    public static MetaClass getFirstMetaClassByClass(Class<?> baseClass, String optionalName) {
+    public static MetaClass getMetaClassesByClass(Class<?> baseClass, String optionalName) {
         return injectables.get(baseClass)
                 .stream()
                 .filter(e -> {
                     if (optionalName.equals("")) {
                         return true;
                     }else {
-                        System.out.println(e.getAdditionalInfo() + " vs " + optionalName);
+//                        System.out.println(e.getAdditionalInfo() + " vs " + optionalName);
                         return e.getAdditionalInfo().equals(optionalName);
                     }
                 })
