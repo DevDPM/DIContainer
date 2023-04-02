@@ -30,21 +30,21 @@ public class DispatcherDI {
                         MetaClass metaClass = MetaClassService.createMetaClass(baseClass, fieldClass);
                         metaClass.setAdditionalInfo(field.getAnnotation(Enable.class).name());
                         MetaClassRepository.saveMetaClassByClassType(field.getType(), metaClass);
-                        AnnotatedRepository.addConfigurationsClass(baseClass);
+                        AnnotatedClassRepository.addConfigurationsClass(baseClass);
                     }
                 }
             } else if (baseClass.isAnnotationPresent(Service.class)) {
                 MetaClass metaClass = MetaClassService.createMetaClass(baseClass);
                 metaClass.setAdditionalInfo(baseClass.getAnnotation(Service.class).name());
                 MetaClassRepository.saveMetaClassByClassType(baseClass, metaClass);
-                AnnotatedRepository.addServiceClass(baseClass);
+                AnnotatedClassRepository.addServiceClass(baseClass);
 
             } else if (baseClass.isAnnotationPresent(Controller.class)) {
                 System.out.println(baseClass + " is controller");
                 MetaClass metaClass = MetaClassService.createMetaClass(baseClass);
 //                metaClass.setAdditionalInfo(baseClass.getAnnotation(Controller.class).name());
                 MetaClassRepository.saveMetaClassByClassType(baseClass, metaClass);
-                AnnotatedRepository.addControllerClass(baseClass);
+                AnnotatedClassRepository.addControllerClass(baseClass);
             }
         });
     }
@@ -130,10 +130,10 @@ public class DispatcherDI {
     }
 
     public static void callInit() {
-        if (AnnotatedRepository.getControllers().isEmpty())
+        if (AnnotatedClassRepository.getControllers().isEmpty())
             return;
 
-        AnnotatedRepository.getControllers().forEach(controllerClass -> {
+        AnnotatedClassRepository.getControllers().forEach(controllerClass -> {
             System.out.println(controllerClass);
             try {
                 for (Method method : controllerClass.getDeclaredMethods()) {

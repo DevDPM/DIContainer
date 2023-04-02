@@ -3,7 +3,7 @@ package org.example.model;
 import java.util.HashSet;
 import java.util.Set;
 
-public class AnnotatedRepository {
+public class AnnotatedClassRepository {
 
     private static final Set<Class<?>> configurations = new HashSet<>();
     private static final Set<Class<?>> services = new HashSet<>();
