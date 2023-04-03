@@ -1,4 +1,4 @@
-package org.example.model;
+package org.dpmFramework.model;
 
 import java.lang.reflect.InvocationTargetException;
 import java.util.*;

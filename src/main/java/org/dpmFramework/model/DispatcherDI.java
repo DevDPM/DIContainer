@@ -1,6 +1,6 @@
-package org.example.model;
+package org.dpmFramework.model;
 
-import org.example.annotation.*;
+import org.dpmFramework.annotation.*;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;

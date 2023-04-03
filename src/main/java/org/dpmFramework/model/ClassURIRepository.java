@@ -1,7 +1,6 @@
-package org.example.model;
+package org.dpmFramework.model;
 
-import com.sun.tools.javac.Main;
-import org.example.Kickstarter;
+import org.dpmFramework.Kickstarter;
 
 import java.io.File;
 import java.net.URL;

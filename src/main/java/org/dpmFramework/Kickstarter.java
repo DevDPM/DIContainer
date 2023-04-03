@@ -1,8 +1,8 @@
-package org.example;
+package org.dpmFramework;
 
-import org.example.model.ControllerDI;
-import org.example.model.MetaClassRepository;
-import org.example.model.MetaClassService;
+import org.dpmFramework.model.ControllerDI;
+import org.dpmFramework.model.MetaClassRepository;
+import org.dpmFramework.model.MetaClassService;
 
 public class Kickstarter {
 
