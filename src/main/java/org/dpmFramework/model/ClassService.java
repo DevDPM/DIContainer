@@ -2,14 +2,18 @@ package org.dpmFramework.model;
 
 import java.util.Set;
 
-public class ClassURIService {
+/*
+* ClassService only provides services for the RepositoryURIClass.
+* */
+
+public class ClassService {
 
     public static Set<Class<?>> getAllClasses() {
-        return ClassURIRepository.getClasses();
+        return ClassRepository.getClasses();
     }
 
     public static Set<Class<?>> getAllInterfaces() {
-        return ClassURIRepository.getInterfaces();
+        return ClassRepository.getInterfaces();
     }
 
     public static boolean isNotPlainClassOrInterface(Class<?> baseClass) {
@@ -20,8 +24,8 @@ public class ClassURIService {
     }
 
     public static void bootstrapRepository(Class<?> startClass) {
-        if (ClassURIRepository.getClasses().isEmpty()) {
-            ClassURIRepository.init(startClass);
+        if (ClassRepository.getClasses().isEmpty()) {
+            ClassRepository.bootstrap(startClass);
         }
     }
 }

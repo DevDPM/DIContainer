@@ -30,14 +30,14 @@ public class MetaClassRepository {
                 .orElseThrow(() -> new RuntimeException("not found"));
     }
 
-    public static void saveMetaClassByClassType(Class<?> type, MetaClass metaClass) {
-        if (injectables.get(type) != null) {
-            Set<MetaClass> value = injectables.get(type);
+    public static void saveOrUpdateMetaClassByClassKey(Class<?> classKey, MetaClass metaClass) {
+        if (injectables.get(classKey) != null) {
+            Set<MetaClass> value = injectables.get(classKey);
             if (value.add(metaClass)) {
-                injectables.put(type, value);
+                injectables.put(classKey, value);
             }
         } else {
-            injectables.put(type, new HashSet<>(List.of(metaClass)));
+            injectables.put(classKey, new HashSet<>(List.of(metaClass)));
         }
     }
 

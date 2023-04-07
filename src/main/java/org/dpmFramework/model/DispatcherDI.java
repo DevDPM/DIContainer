@@ -11,74 +11,88 @@ import java.util.*;
 public class DispatcherDI {
 
     public static void bootstrapClassPaths(Class<?> startClass) {
-        ClassURIService.bootstrapRepository(startClass);
+        ClassService.bootstrapRepository(startClass);
     }
 
     public static void instantiateClassesByAnnotation() {
 
-        if (ClassURIService.getAllClasses().isEmpty())
+        if (ClassService.getAllClasses().isEmpty())
             throw new RuntimeException("Cannot retrieve all classes");
 
-        ClassURIService.getAllClasses().forEach(baseClass -> {
-            if (ClassURIService.isNotPlainClassOrInterface(baseClass))
+        // get all bootstrapped Classes
+        ClassService.getAllClasses().forEach(topClass -> {
+            if (ClassService.isNotPlainClassOrInterface(topClass))
                 return;
 
-            if (baseClass.isAnnotationPresent(Configurations.class)) {
-                for (Field field : baseClass.getDeclaredFields()) {
+            // search for class @Configuration
+            if (topClass.isAnnotationPresent(Configurations.class)) {
+                for (Field field : topClass.getDeclaredFields()) {
+                    // search for field @Enable in @Configuration class
                     if (field.isAnnotationPresent(Enable.class)) {
-                        Class<?> fieldClass = field.getType();
-                        MetaClass metaClass = MetaClassService.createMetaClass(baseClass, fieldClass);
-                        metaClass.setAdditionalInfo(field.getAnnotation(Enable.class).name());
-                        MetaClassRepository.saveMetaClassByClassType(field.getType(), metaClass);
-                        AnnotatedClassRepository.addConfigurationsClass(baseClass);
+                        Class<?> fieldClass = field.getType(); // get Class object from annotated field
+                        MetaClass metaClass = MetaClassService.createMetaClass(topClass, fieldClass); // create a class containing meta information (MetaClass)
+                        metaClass.setAdditionalInfo(field.getAnnotation(Enable.class).name()); // add additional information i.e @Enable (name = "additional_Info")
+                        MetaClassRepository.saveOrUpdateMetaClassByClassKey(fieldClass, metaClass); // save into Map (key: field Class - value: it's metaClass)
+                        AnnotatedClassRepository.addConfigurationsClass(topClass); // added in version 2.0 to separate annotated classes from each other for diff. purpose
                     }
                 }
-            } else if (baseClass.isAnnotationPresent(Service.class)) {
-                MetaClass metaClass = MetaClassService.createMetaClass(baseClass);
-                metaClass.setAdditionalInfo(baseClass.getAnnotation(Service.class).name());
-                MetaClassRepository.saveMetaClassByClassType(baseClass, metaClass);
-                AnnotatedClassRepository.addServiceClass(baseClass);
+                // repeat for @Service
+            } else if (topClass.isAnnotationPresent(Service.class)) {
+                MetaClass metaClass = MetaClassService.createMetaClass(topClass);
+                metaClass.setAdditionalInfo(topClass.getAnnotation(Service.class).name());
+                MetaClassRepository.saveOrUpdateMetaClassByClassKey(topClass, metaClass);
+                AnnotatedClassRepository.addServiceClass(topClass);
 
-            } else if (baseClass.isAnnotationPresent(Controller.class)) {
-                System.out.println(baseClass + " is controller");
-                MetaClass metaClass = MetaClassService.createMetaClass(baseClass);
-//                metaClass.setAdditionalInfo(baseClass.getAnnotation(Controller.class).name());
-                MetaClassRepository.saveMetaClassByClassType(baseClass, metaClass);
-                AnnotatedClassRepository.addControllerClass(baseClass);
+                // repeat for @Controller
+            } else if (topClass.isAnnotationPresent(Controller.class)) {
+                MetaClass metaClass = MetaClassService.createMetaClass(topClass);
+                metaClass.setAdditionalInfo(topClass.getAnnotation(Controller.class).name());
+                MetaClassRepository.saveOrUpdateMetaClassByClassKey(topClass, metaClass);
+                AnnotatedClassRepository.addControllerClass(topClass);
             }
         });
     }
 
+    /*
+     * Wires all interface classes to metaclasses containing the interface implementation
+     * i.e. public ClassExample implements InterfaceExample {}
+     * The following code iterates through all found interface classes.
+     * And search for matching metaClasses containing identical implementation from interfaces.
+     * If a match is found, The interface class and MetaClass that implements the interface class are put in a temporary holder.
+     * After all iterations, all temp's will be wired and saved as new key: Interface class, value: Metaclass implementing the Interface class
+     * */
     public static void wireInterfaceClassToImplementedMetaClass() {
-        List<MetaClass[]> temp = new ArrayList<>();
-        for (Class<?> interfaceClass : ClassURIService.getAllInterfaces()) {
-            MetaClassService.getAllInjectables().forEach((key, metaClassSet) -> metaClassSet.forEach(metaClass -> {
-                if (metaClass.getImplementations() != null) {
-                    metaClass.getImplementations().forEach(implementation -> {
-                        if (implementation.getName().equals(interfaceClass.getName())) {
-                            MetaClass metaInterfaceClass = new MetaClass();
-                            metaInterfaceClass.setObservedClass(interfaceClass);
+        List<Object[]> temp = new ArrayList<>();
+        for (Class<?> interfaceClass : ClassService.getAllInterfaces()) {
+            MetaClassService.getAllInjectables().forEach((key, metaClassSet) -> {
+                metaClassSet.forEach(metaClass -> {
+                    if (metaClass.getImplementations() != null) {
+                        metaClass.getImplementations().forEach(implementation -> {
+                            if (implementation.equals(interfaceClass)) {
 
-                            MetaClass[] holder = new MetaClass[2];
-                            holder[0] = metaInterfaceClass;
-                            holder[1] = metaClass;
-                            temp.add(holder);
-                        }
-                    });
-                }
-            }));
+                                // store 2 different, but to-be-wired objects in 1 temporary array as Object
+                                Object[] holder = new Object[2];
+                                holder[0] = interfaceClass;
+                                holder[1] = metaClass;
+                                temp.add(holder);
+                            }
+                        });
+                    }
+                });
+            });
         }
+
         temp.forEach(e -> {
-            MetaClassRepository.saveMetaClassByClassType(e[0].getObservedClass(), e[1]);
+            MetaClassRepository.saveOrUpdateMetaClassByClassKey((Class<?>) e[0], (MetaClass) e[1]);
         });
     }
 
     public static void initializeAllFields() {
-        ClassURIService.getAllClasses().forEach(parentClass -> {
-            if (ClassURIService.isNotPlainClassOrInterface(parentClass) ||
+        ClassService.getAllClasses().forEach(parentClass -> {
+            if (ClassService.isNotPlainClassOrInterface(parentClass) ||
                     parentClass.isInterface() ||
                     (!parentClass.isAnnotationPresent(Service.class) &&
-                    !parentClass.isAnnotationPresent(Controller.class))) {
+                            !parentClass.isAnnotationPresent(Controller.class))) {
                 return;
             }
             MetaClass parentClassInstance = MetaClassRepository.getMetaClassByClass(parentClass);
