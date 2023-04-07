@@ -132,9 +132,16 @@ public class DispatcherDI {
     public static void callInit() {
         if (AnnotatedClassRepository.getControllers().isEmpty())
             return;
+        callInitFromClasses(AnnotatedClassRepository.getControllers());
 
-        AnnotatedClassRepository.getControllers().forEach(controllerClass -> {
-            System.out.println(controllerClass);
+        if (AnnotatedClassRepository.getServices().isEmpty())
+            return;
+        callInitFromClasses(AnnotatedClassRepository.getServices());
+
+    }
+
+    public static void callInitFromClasses(Set<Class<?>> classes) {
+        classes.forEach(controllerClass -> {
             try {
                 for (Method method : controllerClass.getDeclaredMethods()) {
                     if (method.getName().equals("init")) {

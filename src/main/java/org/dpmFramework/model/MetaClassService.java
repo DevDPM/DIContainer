@@ -15,8 +15,9 @@ public class MetaClassService {
         MetaClass metaClass = new MetaClass();
         metaClass.setObservedClass(observedClass);
         metaClass.setInstance(Objects.requireNonNull(createInstance(observedClass)));
-        if (baseClass.getInterfaces().length > 0)
+        if (baseClass.getInterfaces().length > 0) {
             metaClass.setImplementations(new HashSet<>(List.of(baseClass.getInterfaces())));
+        }
         return metaClass;
     }
 

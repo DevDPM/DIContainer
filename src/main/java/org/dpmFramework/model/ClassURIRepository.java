@@ -11,12 +11,13 @@ public class ClassURIRepository {
 
     private static Set<Class<?>> classes = new HashSet<>();
     private static Set<Class<?>> interfaces = new HashSet<>();
-    private static ClassLoader classLoader = Kickstarter.class.getClassLoader();
+    private static ClassLoader classLoader;
 
     private ClassURIRepository() {
     }
 
     public static void init(Class<?> startClass) {
+        classLoader = startClass.getClassLoader();
         String rootPackagePath = startClass.getPackageName();
         loadClassPaths(rootPackagePath);
     }
